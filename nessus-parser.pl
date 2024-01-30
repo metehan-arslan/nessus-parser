@@ -33,7 +33,7 @@ print "";
 ## summary graphs, and a home page with summary data.  For more information
 ## and questions please contact Cody Dumont cody@melcara.com
 ##
-## Version 0.24
+## Version 0.25
 
 our %recast_plugin;
 our (@installedSoftware,@portScanner,@vuln_entries,@host_scan_data,@WinWirelessSSID,@cpe_data,@PCIDSS,@ADUsers,@ScanInfo,@MS_Process_Info);
@@ -73,33 +73,18 @@ our @host_data;
 my @PolicyCompliance;
 my @policy_data;
 
-my $new_stuff = '
-These are the new features with version 24
-
-1.  Fix regex \Q\E line est 1477,1484 v22
-2.  Removing plugin 33929 from High Vulns calculation
-3.  Removed Compliance from being part of High Vuln Calculation
-4.  Version 23 Skipped
-5.  reordered vuln data processing to not use as much memory.
-6.  
-7. 
-8.  
-9.  
-';
-
-print $new_stuff;
 sleep 2;
 
 #####################  get arguments from the command
 my $help_msg = '
 NAME
-    parse_nessus_xml.v24.pl -- parse nessus v2 XML files into an XLSX file
+    nessus-parser.pl -- parse nessus v2 XML files into an XLSX file
     
 SYNOPSIS
-    perl parse_nessus_xml.v24.pl [-vVhH] [-f file] [-d directory] [-r recast_file optional ]
+    perl nessus-parser.pl [-vVhH] [-f file] [-d directory] [-r recast_file optional ]
 
 DESCRIPTION
-    Nessus Parser v0.24 - This is a program to parse a series of Nessus XMLv2
+    Nessus Parser v0.25 - This is a program to parse a series of Nessus XMLv2
     files into a XLSX file.  The data from the XML file is placed into a series
     of tabs to for easier review and reporting.  New features with this edition
     are better reporting of policy plugin families, user account reporting,
@@ -145,13 +130,13 @@ DESCRIPTION
             
             Examples
             
-            # Recast vulnerability SSL Certificate Cannot Be Trusted (Plugin ID 51192) from Medium to Critical
+            # Recast vulnerability SSL Certificate Cannot Be Trusted (Plugin ID 51192) from Medium(2) to Critical(4)
             51192,2,4
             
-            # Recast vulnerability MySQL 5.1 < 5.1.63 Multiple Vulnerabilities (Plugin ID 59448) from High to Low
+            # Recast vulnerability MySQL 5.1 < 5.1.63 Multiple Vulnerabilities (Plugin ID 59448) from High(3) to Low(1)
             59448,3,1
             
-            # Recast vulnerability MS12-067: Vulnerabilities in FAST Search Server 2010 for Sharepoint RCE from High to Critical
+            # Recast vulnerability MS12-067: Vulnerabilities in FAST Search Server 2010 for Sharepoint RCE from High(3) to Critical(4)
             62462,3,4
             
             The file would contain 3 lines.
@@ -167,31 +152,31 @@ DESCRIPTION
     
     EXAMPLES
         The command:
-                perl /path/to/script/parse_nessus_xml.v24.pl -v
+                perl /path/to/script/nessus-parser.pl -v
             
             This command will print this help message.
         
         The command:
-                perl /path/to/script/parse_nessus_xml.v24.pl -h
+                perl /path/to/script/nessus-parser.pl -h
             
             This command will print this help message.
         
         The command:
-                perl /path/to/script/parse_nessus_xml.v24.pl -d /foo/bar
+                perl /path/to/script/nessus-parser.pl -d /foo/bar
             
             This command will seearch the direcoty specified by the "-d" option
             for Nessus XML v2 files and parse the files found.
         
         The command:
-                perl /path/to/script/parse_nessus_xml.v24.pl -f /foo/bar/scan1.nessus
+                perl /path/to/script/nessus-parser.pl -f /foo/bar/scan1.nessus
                 -----  or -----
-                perl /path/to/script/parse_nessus_xml.v24.pl -f /foo/bar/scan1.nessus.xml
+                perl /path/to/script/nessus-parser.pl -f /foo/bar/scan1.nessus.xml
             
             This command will seearch the direcoty specified by the "-d" option
             for Nessus XML v2 files and parse the files found.
             
         The command:
-                perl /path/to/script/parse_nessus_xml.v24.pl -f /foo/bar/scan1.nessus -r /path/to/script/recast.txt
+                perl /path/to/script/nessus-parser.pl -f /foo/bar/scan1.nessus -r /path/to/script/recast.txt
                 
 ';
 
@@ -286,7 +271,7 @@ my $report_file = sprintf("%4d%02d%02d%02d%02d%02d",($year + 1900),($mon+1),$mda
 
 print "
 ################################################################################
-                            NESSUS PARSER V0.24
+                            NESSUS PARSER V0.25
 ################################################################################
 ";
 
@@ -838,7 +823,9 @@ sub normalizeHostData {
         ####  NEW ARRAYS
         my @aix_local_security_checks;
         my @amazon_linux_local_security_checks;
+        my @alma_linux_local_security_checks;
         my @backdoors;
+        my @brute_force_attacks;
         my @centos_local_security_checks;
         my @cgi_abuses;
         my @cgi_abuses_xss;
@@ -848,7 +835,7 @@ sub normalizeHostData {
         my @default_unix_accounts;
         my @denial_of_service;
         my @dns;
-        my @F5_Networks_Local_Security_Checks;
+        my @f5_networks_local_security_checks;
         my @fedora_local_security_checks;
         my @finger_abuses;
         my @firewalls;
@@ -858,20 +845,24 @@ sub normalizeHostData {
         my @general;
         my @gentoo_local_security_checks;
         my @hp_ux_local_security_checks;
-        my @Huawei_Local_Security_Checks;
+        my @huawei_local_security_checks;
         my @junos_local_security_checks;
         my @macos_x_local_security_checks;
         my @mandriva_local_security_checks;
+        my @marineros_local_security_checks;
         my @misc;
         my @mobile_devices;
         my @netware;
+        my @newstart_cgsl_local_security_checks;
         my @oracle_linux_local_security_checks;
-        my @OracleVM_Local_Security_Checks;
+        my @oraclevm_local_security_checks;
         my @peer_to_peer_file_sharing;
-        my @Palo_Alto_Local_Security_Checks;
+        my @palo_alto_local_security_checks;
+        my @photonos_local_security_checks;
         my @policy_compliance;
         my @port_scanners;
         my @red_hat_local_security_checks;
+        my @rocky_linux_local_security_checks;
         my @rpc;
         my @scada;
         my @scientific_linux_local_security_checks;
@@ -882,15 +873,17 @@ sub normalizeHostData {
         my @snmp;
         my @solaris_local_security_checks;
         my @suse_local_security_checks;
+        my @tenable_ot;
         my @ubuntu_local_security_checks;
         my @vmware_esx_local_security_checks;
+        my @virtuozzo_local_security_checks;
         my @web_servers;
         my @windows;
         my @windows_microsoft_bulletins;
         my @windows_user_management;
         my @port_scan;
         my @WindowsUserManagement;
-        my @IncidentResponse;
+        my @incident_response;
         ####  END OF NEW ARRAYS
         
         if(ref ($host->{host_report}) eq "ARRAY"){@HostReport = @{$host->{host_report}};}
@@ -1165,8 +1158,10 @@ sub normalizeHostData {
             }
             # end of ifif($h_report->{-pluginID} =~ /10150/)
             if($h_report->{'-pluginFamily'} =~ /AIX Local Security Checks/){push @aix_local_security_checks, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /Alma Linux Local Security Checks/){push @alma_linux_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Amazon Linux Local Security Checks/){push @amazon_linux_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Backdoors/){push @backdoors, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /Brute force attacks/){push @brute_force_attacks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /CentOS Local Security Checks/){push @centos_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /CGI abuses/){push @cgi_abuses, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /CGI abuses : XSS/){push @cgi_abuses_xss, $h_report;}
@@ -1176,7 +1171,7 @@ sub normalizeHostData {
             elsif($h_report->{'-pluginFamily'} =~ /Default Unix Accounts/){push @default_unix_accounts, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Denial of Service/){push @denial_of_service, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /DNS/){push @dns, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /F5 Networks Local Security Checks/){push @F5_Networks_Local_Security_Checks, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /F5 Networks Local Security Checks/){push @f5_networks_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Fedora Local Security Checks/){push @fedora_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Finger abuses/){push @finger_abuses, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Firewalls/){push @firewalls, $h_report;}
@@ -1186,20 +1181,24 @@ sub normalizeHostData {
             elsif($h_report->{'-pluginFamily'} =~ /General/){push @general, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Gentoo Local Security Checks/){push @gentoo_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /HP-UX Local Security Checks/){push @hp_ux_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Huawei Local Security Checks/){push @Huawei_Local_Security_Checks, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /Huawei Local Security Checks/){push @huawei_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Junos Local Security Checks/){push @junos_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /MacOS X Local Security Checks/){push @macos_x_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Mandriva Local Security Checks/){push @mandriva_local_security_checks, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /MarinerOS Local Security Checks/){push @marineros_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Misc./){push @misc, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Mobile Devices/){push @mobile_devices, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Netware/){push @netware, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /OracleVM Local Security Checks/){push @OracleVM_Local_Security_Checks, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /NewStart CGSL Local Security Checks/){push @newstart_cgsl_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Oracle Linux Local Security/){push @oracle_linux_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Palo Alto Local Security Checks/){push @Palo_Alto_Local_Security_Checks, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /OracleVM Local Security Checks/){push @oraclevm_local_security_checks, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /Palo Alto Local Security Checks/){push @palo_alto_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Peer-To-Peer File Sharing/){push @peer_to_peer_file_sharing, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /PhotonOS Local Security Checks/){push @photonos_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Policy Compliance/){push @policy_compliance, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Port scanners/){push @port_scanners, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Red Hat Local Security Checks/){push @red_hat_local_security_checks, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /Rocky Linux Local Security Checks/){push @rocky_linux_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /RPC/){push @rpc, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /SCADA/){push @scada, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Scientific Linux Local Security Checks/){push @scientific_linux_local_security_checks, $h_report;}
@@ -1210,13 +1209,15 @@ sub normalizeHostData {
             elsif($h_report->{'-pluginFamily'} =~ /SNMP/){push @snmp, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Solaris Local Security Checks/){push @solaris_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /SuSE Local Security Checks/){push @suse_local_security_checks, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /Tenable.ot/){push @tenable_ot, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Ubuntu Local Security Checks/){push @ubuntu_local_security_checks, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /Virtuozzo Local Security Checks/){push @virtuozzo_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /VMware ESX Local Security Checks/){push @vmware_esx_local_security_checks, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Web Servers/){push @web_servers, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /Windows/){push @windows, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Windows : Microsoft Bulletins/){push @windows_microsoft_bulletins, $h_report;}
             elsif($h_report->{'-pluginFamily'} =~ /Windows : User management/){push @windows_user_management, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Windows/){push @windows, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Incident Response/){push @IncidentResponse, $h_report;}
+            elsif($h_report->{'-pluginFamily'} =~ /Incident Response/){push @incident_response, $h_report;}
             elsif($h_report->{'-pluginFamily'} eq ""){push @port_scan, $h_report;}
             else{ print "\nThere is a new plugin family added, it is $h_report->{'-pluginFamily'}\n";exit;}
             
@@ -1258,7 +1259,9 @@ sub normalizeHostData {
         $vuln_cnt{sev4} = 0;
         if($aix_local_security_checks[0] ne ""){$host->{'aix_local_security_checks'} = \@aix_local_security_checks;%vuln_cnt = get_vuln_cnt(\@aix_local_security_checks,\%vuln_cnt)}
         if($amazon_linux_local_security_checks[0] ne ""){$host->{'amazon_linux_local_security_checks'} = \@amazon_linux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@amazon_linux_local_security_checks,\%vuln_cnt)}
+        if($alma_linux_local_security_checks[0] ne ""){$host->{'alma_linux_local_security_checks'} = \@alma_linux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@alma_linux_local_security_checks,\%vuln_cnt)}
         if($backdoors[0] ne ""){$host->{'backdoors'} = \@backdoors;%vuln_cnt = get_vuln_cnt(\@backdoors,\%vuln_cnt)}
+        if($brute_force_attacks[0] ne ""){$host->{'brute_force_attacks'} = \@brute_force_attacks;%vuln_cnt = get_vuln_cnt(\@brute_force_attacks,\%vuln_cnt)}
         if($centos_local_security_checks[0] ne ""){$host->{'centos_local_security_checks'} = \@centos_local_security_checks;%vuln_cnt = get_vuln_cnt(\@centos_local_security_checks,\%vuln_cnt)}
         if($cgi_abuses[0] ne ""){$host->{'cgi_abuses'} = \@cgi_abuses;%vuln_cnt = get_vuln_cnt(\@cgi_abuses,\%vuln_cnt)}
         if($cgi_abuses_xss[0] ne ""){$host->{'cgi_abuses_xss'} = \@cgi_abuses_xss;%vuln_cnt = get_vuln_cnt(\@cgi_abuses_xss,\%vuln_cnt)}
@@ -1268,7 +1271,7 @@ sub normalizeHostData {
         if($default_unix_accounts[0] ne ""){$host->{'default_unix_accounts'} = \@default_unix_accounts;%vuln_cnt = get_vuln_cnt(\@default_unix_accounts,\%vuln_cnt)}
         if($denial_of_service[0] ne ""){$host->{'denial_of_service'} = \@denial_of_service;%vuln_cnt = get_vuln_cnt(\@denial_of_service,\%vuln_cnt)}
         if($dns[0] ne ""){$host->{'dns'} = \@dns;%vuln_cnt = get_vuln_cnt(\@dns,\%vuln_cnt)}
-        if($F5_Networks_Local_Security_Checks[0] ne ""){$host->{'F5_Networks_Local_Security_Checks'} = \@F5_Networks_Local_Security_Checks;%vuln_cnt = get_vuln_cnt(\@F5_Networks_Local_Security_Checks,\%vuln_cnt)}
+        if($f5_networks_local_security_checks[0] ne ""){$host->{'f5_networks_local_security_checks'} = \@f5_networks_local_security_checks;%vuln_cnt = get_vuln_cnt(\@f5_networks_local_security_checks,\%vuln_cnt)}
         if($fedora_local_security_checks[0] ne ""){$host->{'fedora_local_security_checks'} = \@fedora_local_security_checks;%vuln_cnt = get_vuln_cnt(\@fedora_local_security_checks,\%vuln_cnt)}
         if($finger_abuses[0] ne ""){$host->{'finger_abuses'} = \@finger_abuses;%vuln_cnt = get_vuln_cnt(\@finger_abuses,\%vuln_cnt)}
         if($firewalls[0] ne ""){$host->{'firewalls'} = \@firewalls;%vuln_cnt = get_vuln_cnt(\@firewalls,\%vuln_cnt)}
@@ -1278,20 +1281,24 @@ sub normalizeHostData {
         if($general[0] ne ""){$host->{'general'} = \@general;%vuln_cnt = get_vuln_cnt(\@general,\%vuln_cnt)}
         if($gentoo_local_security_checks[0] ne ""){$host->{'gentoo_local_security_checks'} = \@gentoo_local_security_checks;%vuln_cnt = get_vuln_cnt(\@gentoo_local_security_checks,\%vuln_cnt)}
         if($hp_ux_local_security_checks[0] ne ""){$host->{'hp_ux_local_security_checks'} = \@hp_ux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@hp_ux_local_security_checks,\%vuln_cnt)}
-        if($Huawei_Local_Security_Checks[0] ne ""){$host->{'Huawei_Local_Security_Checks'} = \@Huawei_Local_Security_Checks;%vuln_cnt = get_vuln_cnt(\@Huawei_Local_Security_Checks,\%vuln_cnt)}
+        if($huawei_local_security_checks[0] ne ""){$host->{'huawei_local_security_checks'} = \@huawei_local_security_checks;%vuln_cnt = get_vuln_cnt(\@huawei_local_security_checks,\%vuln_cnt)}
         if($junos_local_security_checks[0] ne ""){$host->{'junos_local_security_checks'} = \@junos_local_security_checks;%vuln_cnt = get_vuln_cnt(\@junos_local_security_checks,\%vuln_cnt)}
         if($macos_x_local_security_checks[0] ne ""){$host->{'macos_x_local_security_checks'} = \@macos_x_local_security_checks;%vuln_cnt = get_vuln_cnt(\@macos_x_local_security_checks,\%vuln_cnt)}
         if($mandriva_local_security_checks[0] ne ""){$host->{'mandriva_local_security_checks'} = \@mandriva_local_security_checks;%vuln_cnt = get_vuln_cnt(\@mandriva_local_security_checks,\%vuln_cnt)}
+        if($marineros_local_security_checks[0] ne ""){$host->{'marineros_local_security_checks'} = \@marineros_local_security_checks;%vuln_cnt = get_vuln_cnt(\@marineros_local_security_checks,\%vuln_cnt)}
         if($misc[0] ne ""){$host->{'misc'} = \@misc;%vuln_cnt = get_vuln_cnt(\@misc,\%vuln_cnt)}
         if($mobile_devices[0] ne ""){$host->{'mobile_devices'} = \@mobile_devices;%vuln_cnt = get_vuln_cnt(\@mobile_devices,\%vuln_cnt)}
         if($netware[0] ne ""){$host->{'netware'} = \@netware;%vuln_cnt = get_vuln_cnt(\@netware,\%vuln_cnt)}
-        if($OracleVM_Local_Security_Checks[0] ne ""){$host->{'OracleVM_Local_Security_Checks'} = \@OracleVM_Local_Security_Checks;%vuln_cnt = get_vuln_cnt(\@OracleVM_Local_Security_Checks,\%vuln_cnt)}
+        if($newstart_cgsl_local_security_checks[0] ne ""){$host->{'newstart_cgsl_local_security_checks'} = \@newstart_cgsl_local_security_checks;%vuln_cnt = get_vuln_cnt(\@newstart_cgsl_local_security_checks,\%vuln_cnt)}
         if($oracle_linux_local_security_checks[0] ne ""){$host->{'oracle_linux_local_security_checks'} = \@oracle_linux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@oracle_linux_local_security_checks,\%vuln_cnt)}
-        if($Palo_Alto_Local_Security_Checks[0] ne ""){$host->{'Palo_Alto_Local_Security_Checks'} = \@Palo_Alto_Local_Security_Checks;%vuln_cnt = get_vuln_cnt(\@Palo_Alto_Local_Security_Checks,\%vuln_cnt)}
+        if($oraclevm_local_security_checks[0] ne ""){$host->{'oraclevm_local_security_checks'} = \@oraclevm_local_security_checks;%vuln_cnt = get_vuln_cnt(\@oraclevm_local_security_checks,\%vuln_cnt)}
+        if($palo_alto_local_security_checks[0] ne ""){$host->{'palo_alto_local_security_checks'} = \@palo_alto_local_security_checks;%vuln_cnt = get_vuln_cnt(\@palo_alto_local_security_checks,\%vuln_cnt)}
         if($peer_to_peer_file_sharing[0] ne ""){$host->{'peer_to_peer_file_sharing'} = \@peer_to_peer_file_sharing;%vuln_cnt = get_vuln_cnt(\@peer_to_peer_file_sharing,\%vuln_cnt)}
+        if($photonos_local_security_checks[0] ne ""){$host->{'photonos_local_security_checks'} = \@photonos_local_security_checks;%vuln_cnt = get_vuln_cnt(\@photonos_local_security_checks,\%vuln_cnt)}
         if($policy_compliance[0] ne ""){$host->{'policy_compliance'} = \@policy_compliance;}
         if($port_scanners[0] ne ""){$host->{'port_scanners'} = \@port_scanners;%vuln_cnt = get_vuln_cnt(\@port_scanners,\%vuln_cnt)}
         if($red_hat_local_security_checks[0] ne ""){$host->{'red_hat_local_security_checks'} = \@red_hat_local_security_checks;%vuln_cnt = get_vuln_cnt(\@red_hat_local_security_checks,\%vuln_cnt)}
+        if($rocky_linux_local_security_checks[0] ne ""){$host->{'rocky_linux_local_security_checks'} = \@rocky_linux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@rocky_linux_local_security_checks,\%vuln_cnt)}
         if($rpc[0] ne ""){$host->{'rpc'} = \@rpc;%vuln_cnt = get_vuln_cnt(\@rpc,\%vuln_cnt)}
         if($scada[0] ne ""){$host->{'scada'} = \@scada;%vuln_cnt = get_vuln_cnt(\@scada,\%vuln_cnt)}
         if($scientific_linux_local_security_checks[0] ne ""){$host->{'scientific_linux_local_security_checks'} = \@scientific_linux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@scientific_linux_local_security_checks,\%vuln_cnt)}
@@ -1302,14 +1309,17 @@ sub normalizeHostData {
         if($snmp[0] ne ""){$host->{'snmp'} = \@snmp;%vuln_cnt = get_vuln_cnt(\@snmp,\%vuln_cnt)}
         if($solaris_local_security_checks[0] ne ""){$host->{'solaris_local_security_checks'} = \@solaris_local_security_checks;%vuln_cnt = get_vuln_cnt(\@solaris_local_security_checks,\%vuln_cnt)}
         if($suse_local_security_checks[0] ne ""){$host->{'suse_local_security_checks'} = \@suse_local_security_checks;%vuln_cnt = get_vuln_cnt(\@suse_local_security_checks,\%vuln_cnt)}
+        if($tenable_ot[0] ne ""){$host->{'tenable_ot'} = \@tenable_ot;%vuln_cnt = get_vuln_cnt(\@tenable_ot,\%vuln_cnt)}
         if($ubuntu_local_security_checks[0] ne ""){$host->{'ubuntu_local_security_checks'} = \@ubuntu_local_security_checks;%vuln_cnt = get_vuln_cnt(\@ubuntu_local_security_checks,\%vuln_cnt)}
+        if($virtuozzo_local_security_checks[0] ne ""){$host->{'virtuozzo_local_security_checks'} = \@virtuozzo_local_security_checks;%vuln_cnt = get_vuln_cnt(\@virtuozzo_local_security_checks,\%vuln_cnt)}
         if($vmware_esx_local_security_checks[0] ne ""){$host->{'vmware_esx_local_security_checks'} = \@vmware_esx_local_security_checks;%vuln_cnt = get_vuln_cnt(\@vmware_esx_local_security_checks,\%vuln_cnt)}
         if($web_servers[0] ne ""){$host->{'web_servers'} = \@web_servers;%vuln_cnt = get_vuln_cnt(\@web_servers,\%vuln_cnt)}
+        if($windows[0] ne ""){$host->{'windows'} = \@windows;%vuln_cnt = get_vuln_cnt(\@windows,\%vuln_cnt)}
         if($windows_microsoft_bulletins[0] ne ""){$host->{'windows_microsoft_bulletins'} = \@windows_microsoft_bulletins;%vuln_cnt = get_vuln_cnt(\@windows_microsoft_bulletins,\%vuln_cnt)}
         if($windows_user_management[0] ne ""){$host->{'windows_user_management'} = \@windows_user_management;%vuln_cnt = get_vuln_cnt(\@windows_user_management,\%vuln_cnt)}
-        if($windows[0] ne ""){$host->{'windows'} = \@windows;%vuln_cnt = get_vuln_cnt(\@windows,\%vuln_cnt)}
+
         if($port_scan[0] ne ""){$host->{'port_scan'} = \@port_scan;%vuln_cnt = get_vuln_cnt(\@port_scan,\%vuln_cnt)}
-        if($IncidentResponse[0] ne ""){$host->{'IncidentResponse'} = \@IncidentResponse;%vuln_cnt = get_vuln_cnt(\@IncidentResponse,\%vuln_cnt);}
+        if($incident_response[0] ne ""){$host->{'incident_response'} = \@incident_response;%vuln_cnt = get_vuln_cnt(\@incident_response,\%vuln_cnt);}
         
         $host->{'vuln_cnt'} = \%vuln_cnt;
     }
@@ -1325,8 +1335,10 @@ sub normalizeHostData {
         my $name = $host->{name};
         if (not defined $host->{'host-fqdn'}){$host->{'host-fqdn'} = "N/A";}
         if($host->{'aix_local_security_checks'}->[0] ne ""){store_vuln($host->{'aix_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'alma_linux_local_security_checks'}->[0] ne ""){store_vuln($host->{'alma_linux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'amazon_linux_local_security_checks'}->[0] ne ""){store_vuln($host->{'amazon_linux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'backdoors'}->[0] ne ""){store_vuln($host->{'backdoors'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'brute_force_attacks'}->[0] ne ""){store_vuln($host->{'brute_force_attacks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'centos_local_security_checks'}->[0] ne ""){store_vuln($host->{'centos_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'cgi_abuses'}->[0] ne ""){store_vuln($host->{'cgi_abuses'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'cgi_abuses_xss'}->[0] ne ""){store_vuln($host->{'cgi_abuses_xss'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
@@ -1336,7 +1348,7 @@ sub normalizeHostData {
         if($host->{'default_unix_accounts'}->[0] ne ""){store_vuln($host->{'default_unix_accounts'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'denial_of_service'}->[0] ne ""){store_vuln($host->{'denial_of_service'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'dns'}->[0] ne ""){store_vuln($host->{'dns'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'F5_Networks_Local_Security_Checks'}->[0] ne ""){store_vuln($host->{'F5_Networks_Local_Security_Checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'f5_networks_local_security_checks'}->[0] ne ""){store_vuln($host->{'f5_networks_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'fedora_local_security_checks'}->[0] ne ""){store_vuln($host->{'fedora_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'finger_abuses'}->[0] ne ""){store_vuln($host->{'finger_abuses'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'firewalls'}->[0] ne ""){store_vuln($host->{'firewalls'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
@@ -1346,21 +1358,25 @@ sub normalizeHostData {
         if($host->{'general'}->[0] ne ""){store_vuln($host->{'general'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'gentoo_local_security_checks'}->[0] ne ""){store_vuln($host->{'gentoo_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'hp_ux_local_security_checks'}->[0] ne ""){store_vuln($host->{'hp_ux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'Huawei_Local_Security_Checks'}->[0] ne ""){store_vuln($host->{'Huawei_Local_Security_Checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'IncidentResponse'}->[0] ne ""){store_vuln($host->{'IncidentResponse'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'huawei_local_security_checks'}->[0] ne ""){store_vuln($host->{'huawei_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'incident_response'}->[0] ne ""){store_vuln($host->{'incident_response'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'junos_local_security_checks'}->[0] ne ""){store_vuln($host->{'junos_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'macos_x_local_security_checks'}->[0] ne ""){store_vuln($host->{'macos_x_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'mandriva_local_security_checks'}->[0] ne ""){store_vuln($host->{'mandriva_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'marineros_local_security_checks'}->[0] ne ""){store_vuln($host->{'marineros_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'misc'}->[0] ne ""){store_vuln($host->{'misc'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'mobile_devices'}->[0] ne ""){store_vuln($host->{'mobile_devices'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'netware'}->[0] ne ""){store_vuln($host->{'netware'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'OracleVM_Local_Security_Checks'}->[0] ne ""){store_vuln($host->{'OracleVM_Local_Security_Checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'newstart_cgsl_local_security_checks'}->[0] ne ""){store_vuln($host->{'newstart_cgsl_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'oracle_linux_local_security_checks'}->[0] ne ""){store_vuln($host->{'oracle_linux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'Palo_Alto_Local_Security_Checks'}->[0] ne ""){store_vuln($host->{'Palo_Alto_Local_Security_Checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'oraclevm_local_security_checks'}->[0] ne ""){store_vuln($host->{'oraclevm_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'palo_alto_local_security_checks'}->[0] ne ""){store_vuln($host->{'palo_alto_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'peer_to_peer_file_sharing'}->[0] ne ""){store_vuln($host->{'peer_to_peer_file_sharing'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'photonos_local_security_checks'}->[0] ne ""){store_vuln($host->{'photonos_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'policy_compliance'}->[0] ne ""){store_vuln($host->{'policy_compliance'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'port_scanners'}->[0] ne ""){store_vuln($host->{'port_scanners'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'red_hat_local_security_checks'}->[0] ne ""){store_vuln($host->{'red_hat_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'rocky_linux_local_security_checks'}->[0] ne ""){store_vuln($host->{'rocky_linux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'rpc'}->[0] ne ""){store_vuln($host->{'rpc'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'scada'}->[0] ne ""){store_vuln($host->{'scada'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'scientific_linux_local_security_checks'}->[0] ne ""){store_vuln($host->{'scientific_linux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
@@ -1371,12 +1387,14 @@ sub normalizeHostData {
         if($host->{'snmp'}->[0] ne ""){store_vuln($host->{'snmp'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'solaris_local_security_checks'}->[0] ne ""){store_vuln($host->{'solaris_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'suse_local_security_checks'}->[0] ne ""){store_vuln($host->{'suse_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'tenable_ot'}->[0] ne ""){store_vuln($host->{'tenable_ot'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'ubuntu_local_security_checks'}->[0] ne ""){store_vuln($host->{'ubuntu_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'vmware_esx_local_security_checks'}->[0] ne ""){store_vuln($host->{'vmware_esx_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'virtuozzo_local_security_checks'}->[0] ne ""){store_vuln($host->{'virtuozzo_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'web_servers'}->[0] ne ""){store_vuln($host->{'web_servers'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+        if($host->{'windows'}->[0] ne ""){store_vuln($host->{'windows'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"})}
         if($host->{'windows_microsoft_bulletins'}->[0] ne ""){store_vuln($host->{'windows_microsoft_bulletins'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
         if($host->{'windows_user_management'}->[0] ne ""){store_vuln($host->{'windows_user_management'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"})}
-        if($host->{'windows'}->[0] ne ""){store_vuln($host->{'windows'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"})}
         if($host->{'port_scan'}->[0] ne ""){store_vuln($host->{'port_scan'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"})}
         my @MSWinAccounts;
         my $domain_user_list;
@@ -1533,7 +1551,9 @@ sub normalizeHostData {
         
         delete $host->{'aix_local_security_checks'};
         delete $host->{'amazon_linux_local_security_checks'};
+        delete $host->{'alma_linux_local_security_checks'};
         delete $host->{'backdoors'};
+        delete $host->{'brute_force_attacks'};
         delete $host->{'centos_local_security_checks'};
         delete $host->{'cgi_abuses'};
         delete $host->{'cgi_abuses_xss'};
@@ -1543,7 +1563,7 @@ sub normalizeHostData {
         delete $host->{'default_unix_accounts'};
         delete $host->{'denial_of_service'};
         delete $host->{'dns'};
-        delete $host->{'F5_Networks_Local_Security_Checks'};
+        delete $host->{'f5_networks_local_security_checks'};
         delete $host->{'fedora_local_security_checks'};
         delete $host->{'finger_abuses'};
         delete $host->{'firewalls'};
@@ -1553,21 +1573,25 @@ sub normalizeHostData {
         delete $host->{'general'};
         delete $host->{'gentoo_local_security_checks'};
         delete $host->{'hp_ux_local_security_checks'};
-        delete $host->{'Huawei_Local_Security_Checks'};
-        delete $host->{'IncidentResponse'};
+        delete $host->{'huawei_local_security_checks'};
+        delete $host->{'incident_response'};
         delete $host->{'junos_local_security_checks'};
         delete $host->{'macos_x_local_security_checks'};
         delete $host->{'mandriva_local_security_checks'};
+        delete $host->{'marineros_local_security_checks'};
         delete $host->{'misc'};
         delete $host->{'mobile_devices'};
         delete $host->{'netware'};
-        delete $host->{'OracleVM_Local_Security_Checks'};
+        delete $host->{'newstart_cgsl_local_security_checks'};
+        delete $host->{'oraclevm_local_security_checks'};
         delete $host->{'oracle_linux_local_security_checks'};
-        delete $host->{'Palo_Alto_Local_Security_Checks'};
+        delete $host->{'palo_alto_local_security_checks'};
         delete $host->{'peer_to_peer_file_sharing'};
+        delete $host->{'photonos_local_security_checks'};
         delete $host->{'policy_compliance'};
         delete $host->{'port_scanners'};
         delete $host->{'red_hat_local_security_checks'};
+        delete $host->{'rocky_linux_local_security_checks'};
         delete $host->{'rpc'};
         delete $host->{'scada'};
         delete $host->{'scientific_linux_local_security_checks'};
@@ -1578,8 +1602,10 @@ sub normalizeHostData {
         delete $host->{'snmp'};
         delete $host->{'solaris_local_security_checks'};
         delete $host->{'suse_local_security_checks'};
+        delete $host->{'tenable_ot'};
         delete $host->{'ubuntu_local_security_checks'};
         delete $host->{'vmware_esx_local_security_checks'};
+        delete $host->{'virtuozzo_local_security_checks'};
         delete $host->{'web_servers'};
         delete $host->{'windows_microsoft_bulletins'};
         delete $host->{'windows_user_management'};
@@ -3035,9 +3061,7 @@ $Home_worksheet->write($Home_cnt, 1, "\=COUNTIF\(HostConfigData\!I3\:I$total_dis
 ++$Home_cnt;
 
 $workbook->close();
-print $new_stuff;
 print "\n\ncompleted\n\nThe Data is stored in $dir/$report_prefix\_$report_file.xlsx";
-print "\nEND OF VERSION 0.24\n";
 
 __END__
 
