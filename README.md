@@ -5,7 +5,7 @@ Feel free to open pull requests/issues!
 
 
 ## Before Getting Started
-- Make sure you have Ruby and cpan installed. 
+- Make sure you have Perl and cpan installed. 
 - Get dependencies via cpan:  
 >cpan install XML::TreePP Data::Dumper Math::Round Excel::Writer::XLSX Data::Table Excel::Writer::XLSX::Chart Getopt::Std
 
