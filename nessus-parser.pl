@@ -73,8 +73,6 @@ our @host_data;
 my @PolicyCompliance;
 my @policy_data;
 
-sleep 2;
-
 #####################  get arguments from the command
 my $help_msg = '
 NAME
@@ -2837,7 +2835,7 @@ foreach my $entry (@host_sum_array){
     $chart->add_series(
         name       => $chart_title,
         categories => [$chart_sheet_name, $row_start, $row_end-1, 0, 0],
-        values     => [$chart_sheet_name, $row_start, $row_end-1, 1, 1]
+        values     => [$chart_sheet_name, $row_start, $row_end-1, 1, 1],
     );
     # Add a title.
     $chart->set_title( name => $chart_title);
@@ -3061,8 +3059,9 @@ $Home_worksheet->write($Home_cnt, 1, "\=COUNTIF\(HostConfigData\!I3\:I$total_dis
 ++$Home_cnt;
 
 $workbook->close();
-print "\n\ncompleted\n\nThe Data is stored in $dir/$report_prefix\_$report_file.xlsx";
-
+print "\n\ncompleted.\n\nThe Data is stored in $dir/$report_prefix\_$report_file.xlsx in ";
+print time - $^T;
+print " seconds.\n"
 __END__
 
 ##################################################################################### BEGIN SAMPLE NEW WORKSHEET
