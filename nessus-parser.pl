@@ -263,7 +263,9 @@ my $random_number = rand();
 my $now_string = localtime;
 my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
 my $report_prefix = "nessus_report";
+$opt{"f"} =~s/.nessus//;
 if($opt{"o"}){$report_prefix = $opt{"o"}}
+elsif($opt{"f"}){$report_prefix = $opt{"f"}}
 my $report_file = sprintf("%4d%02d%02d%02d%02d%02d",($year + 1900),($mon+1),$mday,$hour,$min,$sec);
 ######  end contribution
 
