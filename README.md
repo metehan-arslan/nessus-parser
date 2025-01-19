@@ -6,7 +6,7 @@ Feel free to open pull requests/issues!
 
 ## Before Getting Started
 - Make sure you have Perl and cpan installed. 
-- Get dependencies via cpan:  
+- Get dependencies via cpan:  (takes some time, might require sudo privilege.)
 >cpan install XML::TreePP Data::Dumper Math::Round Excel::Writer::XLSX Data::Table Excel::Writer::XLSX::Chart Getopt::Std
 
 ## Usage
@@ -16,7 +16,7 @@ Feel free to open pull requests/issues!
 
 ### Options:
 ```
-    -o      Changes the filename prefix.  The default prefix is "nessus_report".
+    -o      Changes the filename prefix.  The default output name is same as input file.
             A time stamp is appended onto the prefix.  An exmaple of the default
             file name is nessus_report_20130409162908.xlsx.  if the "-o foobar" is
             passed, then the file name will be foobar_20130409162908.xlsx

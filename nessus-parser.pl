@@ -8,10 +8,12 @@ use Excel::Writer::XLSX;
 use Data::Table;
 use Excel::Writer::XLSX::Chart;
 use Getopt::Std;
+use Storable;
+use JSON;
 #use Devel::Size qw(size total_size);   #############  New module
 
 print "";
-## Copyright (C) 2016  Cody Dumont
+## Copyright (C) 2017  Cody Dumont
 ##
 ## This program is free software; you can redistribute it and/or
 ## modify it under the terms of the GNU General Public License
@@ -32,8 +34,6 @@ print "";
 ## are better reporting of policy plugin families, user account reporting,
 ## summary graphs, and a home page with summary data.  For more information
 ## and questions please contact Cody Dumont cody@melcara.com
-##
-## Version 0.25
 
 our %recast_plugin;
 our (@installedSoftware,@portScanner,@vuln_entries,@host_scan_data,@WinWirelessSSID,@cpe_data,@PCIDSS,@ADUsers,@ScanInfo,@MS_Process_Info);
@@ -65,8 +65,10 @@ my $dir;
 my $target_file;
 my @xml_files;
 our %cvss_score;
-our $port_scan_plugin = '(10335)|(34277)|(11219)|(14272)|(34220)';
-our $installed_software_plugin = '(20811)|(58452)|(22869)';
+our $port_scan_plugin = '\b((10335)|(34277)|(11219)|(14272)|(34220))\b';
+our $installed_software_plugin = '\b((20811)|(58452)|(22869))\b';
+our @authPlugins = qw (19506 97993 12634 10394 19762 73204 72816 57399 57400 10400 57033 10428 13855 110695 102094 110723 104410 110095 110385 117885 117887 21745 117886 149334 141118 122503 35705 102094);
+our $authData;
 our %total_discovered;
 our %vuln_totals;
 our @host_data;
@@ -180,7 +182,7 @@ DESCRIPTION
 
 my $version = $ARGV[0];
 my %opt;
-getopt('dfro', \%opt);
+getopt('dfrom', \%opt);
 
 if($version =~ /-(v|V|h|H)/){
     print $help_msg;exit;
@@ -237,6 +239,7 @@ elsif($opt{"f"}){
 else{
     print $help_msg;exit;
 }
+# end if..elsif..else
 
 if($opt{"r"}){
     my $recast_file = $opt{"r"};
@@ -254,7 +257,14 @@ if($opt{"r"}){
         $recast_plugin{$t[0]}->{new} = $t[2];
     }
 }
+# end if
 
+our $mode = "NOT_SET";
+
+if($opt{"m"}){
+    $mode = $opt{"m"};
+    print "\n\nTHE MODE IS $mode \n\n";
+}
 
 ##################   end command arguments
 
@@ -271,7 +281,7 @@ my $report_file = sprintf("%4d%02d%02d%02d%02d%02d",($year + 1900),($mon+1),$mda
 
 print "
 ################################################################################
-                            NESSUS PARSER V0.25
+                            NESSUS PARSER V0.26a
 ################################################################################
 ";
 
@@ -291,9 +301,9 @@ sub vulnerability_plugin_worksheet {
     $tmp_worksheet->write(1, 5, 'Bid',$center_border6_format);
     $tmp_worksheet->write(1, 6, 'CVE',$center_border6_format);
     $tmp_worksheet->write(1, 7, 'OSVDB',$center_border6_format);
-    $tmp_worksheet->write(1, 8, 'CVSS Vector',$center_border6_format);
-    $tmp_worksheet->write(1, 9, 'CVSS Base Score',$center_border6_format);
-    $tmp_worksheet->write(1, 10, 'CVSS Temporal Score',$center_border6_format);
+    $tmp_worksheet->write(1, 8, 'CVSSv3 Vector',$center_border6_format);
+    $tmp_worksheet->write(1, 9, 'CVSSv3 Base Score',$center_border6_format);
+    $tmp_worksheet->write(1, 10, 'CVSSv3 Temporal Score',$center_border6_format);
     $tmp_worksheet->write(1, 11, 'Solution',$center_border6_format);
     $tmp_worksheet->write(1, 12, 'Description',$center_border6_format);
     $tmp_worksheet->write(1, 13, 'Exploitability Ease',$center_border6_format);
@@ -578,7 +588,7 @@ sub check_if_vuln_present{
     my $xref;
     if (ref $vuln->{xref} eq "ARRAY"){$xref = join "|", @{$vuln->{xref}}}
     elsif (ref $vuln->{xref} eq ""){$xref = $vuln->{xref}}
-    
+
     my $plugin_cnt = 0;
     
     if ($severity == 0){
@@ -588,7 +598,7 @@ sub check_if_vuln_present{
         
         if ($plugin_test == 0){
             ++$plugin_cnt;
-            $plugin = "$plugin\,$severity\,$plugin_cnt\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss_base_score},$vuln->{cvss_vector},$vuln->{cvss_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
+            $plugin = "$plugin\,$severity\,$plugin_cnt\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss3_base_score},$vuln->{cvss3_vector},$vuln->{cvss3_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
             push @{$vulnerability_data{nonevuln}}, $plugin
         }
         else{
@@ -600,7 +610,7 @@ sub check_if_vuln_present{
             }
             # end foreach
             if ($found == 0){
-                $plugin = "$plugin\,$severity\,1\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss_base_score},$vuln->{cvss_vector},$vuln->{cvss_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
+                $plugin = "$plugin\,$severity\,1\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss3_base_score},$vuln->{cvss3_vector},$vuln->{cvss3_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
                 push @{$vulnerability_data{nonevuln}}, $plugin;
             }
             # end of if
@@ -613,7 +623,7 @@ sub check_if_vuln_present{
         my @found_plugin = grep /$vuln->{-pluginID}/, @{$vulnerability_data{lowvuln}};
         if ($plugin_test == 0){
             ++$plugin_cnt;
-            $plugin = "$plugin\,$severity\,$plugin_cnt\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss_base_score},$vuln->{cvss_vector},$vuln->{cvss_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
+            $plugin = "$plugin\,$severity\,$plugin_cnt\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss3_base_score},$vuln->{cvss3_vector},$vuln->{cvss3_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
             push @{$vulnerability_data{lowvuln}}, $plugin
         }
         else{
@@ -625,7 +635,7 @@ sub check_if_vuln_present{
             }
             # end foreach
             if ($found == 0){
-               $plugin = "$plugin\,$severity\,1\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss_base_score},$vuln->{cvss_vector},$vuln->{cvss_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
+               $plugin = "$plugin\,$severity\,1\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss3_base_score},$vuln->{cvss3_vector},$vuln->{cvss3_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
                 push @{$vulnerability_data{lowvuln}}, $plugin;
             }
             # end if
@@ -636,7 +646,7 @@ sub check_if_vuln_present{
         my @found_plugin = grep /$vuln->{-pluginID}/, @{$vulnerability_data{medvuln}};
         if ($plugin_test == 0){
             ++$plugin_cnt;
-            $plugin = "$plugin\,$severity\,$plugin_cnt\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss_base_score},$vuln->{cvss_vector},$vuln->{cvss_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
+            $plugin = "$plugin\,$severity\,$plugin_cnt\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss3_base_score},$vuln->{cvss3_vector},$vuln->{cvss3_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
             push @{$vulnerability_data{medvuln}}, $plugin
         }
         else{
@@ -648,7 +658,7 @@ sub check_if_vuln_present{
             }
             # end foreach
             if ($found == 0){
-                $plugin = "$plugin\,$severity\,1\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss_base_score},$vuln->{cvss_vector},$vuln->{cvss_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
+                $plugin = "$plugin\,$severity\,1\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss3_base_score},$vuln->{cvss3_vector},$vuln->{cvss3_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
                 push @{$vulnerability_data{medvuln}}, $plugin;
             }
             # end if
@@ -660,7 +670,7 @@ sub check_if_vuln_present{
         my @found_plugin = grep /$vuln->{-pluginID}/, @{$vulnerability_data{highvuln}};
         if ($plugin_test == 0){
             ++$plugin_cnt;
-            $plugin = "$plugin\,$severity\,$plugin_cnt\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss_base_score},$vuln->{cvss_vector},$vuln->{cvss_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
+            $plugin = "$plugin\,$severity\,$plugin_cnt\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss3_base_score},$vuln->{cvss3_vector},$vuln->{cvss3_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
             push @{$vulnerability_data{highvuln}}, $plugin
         }
         else{
@@ -672,7 +682,7 @@ sub check_if_vuln_present{
             }
             # end foreach
             if ($found == 0){
-                $plugin = "$plugin\,$severity\,1\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss_base_score},$vuln->{cvss_vector},$vuln->{cvss_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
+                $plugin = "$plugin\,$severity\,1\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss3_base_score},$vuln->{cvss3_vector},$vuln->{cvss3_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
                 push @{$vulnerability_data{highvuln}}, $plugin;
             }
             # end if
@@ -684,7 +694,7 @@ sub check_if_vuln_present{
         my @found_plugin = grep /$vuln->{-pluginID}/, @{$vulnerability_data{criticalvuln}};
         if ($plugin_test == 0){
             ++$plugin_cnt;
-            $plugin = "$plugin\,$severity\,$plugin_cnt\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss_base_score},$vuln->{cvss_vector},$vuln->{cvss_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
+            $plugin = "$plugin\,$severity\,$plugin_cnt\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss3_base_score},$vuln->{cvss3_vector},$vuln->{cvss3_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
             push @{$vulnerability_data{criticalvuln}}, $plugin
         }
         else{
@@ -696,7 +706,7 @@ sub check_if_vuln_present{
             }
             # end foreach
             if ($found == 0){
-                $plugin = "$plugin\,$severity\,1\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss_base_score},$vuln->{cvss_vector},$vuln->{cvss_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
+                $plugin = "$plugin\,$severity\,1\,$pluginName\,$file\,$vuln->{-pluginFamily},$bid,$cve,$xref,$vuln->{solution},$vuln->{description},$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss3_base_score},$vuln->{cvss3_vector},$vuln->{cvss3_temporal_score},$vuln->{solution},$vuln->{synopsis},$vuln->{plugin_publication_date},$vuln->{plugin_modification_date},$vuln->{patch_publication_date},$vuln->{vuln_publication_date}";
                 push @{$vulnerability_data{criticalvuln}}, $plugin;
             }
             # the if found statement
@@ -709,6 +719,7 @@ sub check_if_vuln_present{
 # END OF SUBROUTINE
 
 sub store_vuln{
+    print "";
     my @vuln_array = @{$_[0]};
     my $file = $_[1];
     my $name = $_[2];
@@ -725,7 +736,7 @@ sub store_vuln{
     
     foreach my $vuln (@vuln_array){
         if ($vuln->{-pluginID} == 33929){print "Removing plugin 33929 from High Vulns calculation\n"}
-        elsif ($vuln->{"cm:compliance-result"}) {"removing from the high vulns calculator\n"}
+        elsif ($vuln->{"cm:compliance-result"}) {print "removing from the high vulns calculator\n"}
         else {$vuln_totals{$vuln->{-severity}}->{$vuln->{-pluginID}}++;}
         
         if ($vuln->{exploitability_ease} eq ""){$vuln->{exploitability_ease} = "N/A"}
@@ -735,10 +746,16 @@ sub store_vuln{
         if ($vuln->{exploit_framework_core} eq ""){$vuln->{exploit_framework_core} = "N/A"}
         if ($vuln->{metasploit_name} eq ""){$vuln->{metasploit_name} = "N/A"}
         if ($vuln->{canvas_package} eq ""){$vuln->{canvas_package} = "N/A"}
-        if ($vuln->{cvss_base_score} eq ""){$vuln->{cvss_base_score} = "N/A"}
-        if ($vuln->{cvss_vector} eq ""){$vuln->{cvss_vector} = "N/A"}
-        if ($vuln->{cvss_temporal_score} eq ""){$vuln->{cvss_temporal_score} = "N/A"}
-        
+        if ($vuln->{cvss3_base_score} eq ""){$vuln->{cvss3_base_score} = "N/A"}
+        if ($vuln->{cvss3_vector} eq ""){$vuln->{cvss3_vector} = "N/A"}
+        if ($vuln->{cvss3_temporal_score} eq ""){$vuln->{cvss3_temporal_score} = "N/A"}
+
+        if(grep /$vuln->{-pluginID}/, @authPlugins){
+            push @{$authData->{array}},"$vuln->{-pluginID},$host_fqdn,$file";
+            ++$authData->{hash}->{$file}->{$host_fqdn}->{$vuln->{-pluginID}};
+            print "";
+        }
+
         if($vuln->{-pluginID} =~ /$port_scan_plugin/){
             $hash{'vuln'} = $vuln;
             my %h2 = %hash;
@@ -749,7 +766,7 @@ sub store_vuln{
             my %h2 = %hash;
             push @installedSoftware,\%h2;
         }
-        elsif ($vuln->{-pluginID} =~ /(33931)|(33930)|(33929)|(57581)|(56209)|(56208)/) {
+        elsif ($vuln->{-pluginID} =~ /\b((33931)|(33930)|(33929)|(57581)|(56209)|(56208))\b/) {
             #33931 - PCI DSS Compliance: Tests Requirements
             #33929 - PCI DSS compliance
             #33930 - PCI DSS Compliance: Passed
@@ -764,7 +781,7 @@ sub store_vuln{
         elsif($vuln->{-pluginFamily} eq "Policy Compliance"){
             # REMOVE 21156 - Windows Compliance Checks
             # Audit Checks
-            if($vuln->{-pluginID} !~ /(66759)|(66757)|(66756)|(66758)|(33931)|(60020)|(33929)|(56209)|(56208)/){
+            if($vuln->{-pluginID} !~ /\b((66759)|(66757)|(66756)|(66758)|(33931)|(60020)|(33929)|(56209)|(56208))\b/){
                 $hash{'vuln'} = $vuln;
                 my %h2 = %hash;
                 push @{$complaince{$vuln->{-pluginName}}},\%h2;
@@ -799,11 +816,13 @@ sub store_vuln{
         # end of if ($vuln->{plugin_output})
         
         if($vuln->{-pluginFamily} ne "Policy Compliance"){
-            if($vuln->{'-pluginID'} eq '33929'){
+            if($vuln->{'-pluginID'} eq '174478'){
                 print "";
             }
-            
-            my $r = "$file,$name,$host_fqdn,$vuln->{'-pluginID'},$vuln->{'-protocol'},$vuln->{'-port'},$vuln->{'-severity'},$vuln->{'-pluginFamily'},$plugin_name,$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss_base_score},$vuln->{cvss_vector},$vuln->{cvss_temporal_score},$vuln->{plugin_output}";
+            if(grep /cvss/, keys %{$vuln}){
+                print "";
+            }
+            my $r = "$file,$name,$host_fqdn,$vuln->{'-pluginID'},$vuln->{'-protocol'},$vuln->{'-port'},$vuln->{'-severity'},$vuln->{'-pluginFamily'},$plugin_name,$vuln->{exploitability_ease},$vuln->{exploit_available},$vuln->{exploit_framework_canvas},$vuln->{exploit_framework_metasploit},$vuln->{exploit_framework_core},$vuln->{metasploit_name},$vuln->{canvas_package},$vuln->{cvss3_base_score},$vuln->{cvss3_vector},$vuln->{cvss3_temporal_score},$vuln->{plugin_output}";
             push @host_scan_data,$r;
         }
         # end of if($vuln->{-pluginFamily} ne "Policy Compliance")
@@ -820,70 +839,8 @@ sub normalizeHostData {
         my $is_domain_controller = 0;
         my $temp_domain_list;
         $host->{"DomainController"} = "N";
-        ####  NEW ARRAYS
-        my @aix_local_security_checks;
-        my @amazon_linux_local_security_checks;
-        my @alma_linux_local_security_checks;
-        my @backdoors;
-        my @brute_force_attacks;
-        my @centos_local_security_checks;
-        my @cgi_abuses;
-        my @cgi_abuses_xss;
-        my @cisco;
-        my @databases;
-        my @debian_local_security_checks;
-        my @default_unix_accounts;
-        my @denial_of_service;
-        my @dns;
-        my @f5_networks_local_security_checks;
-        my @fedora_local_security_checks;
-        my @finger_abuses;
-        my @firewalls;
-        my @freebsd_local_security_checks;
-        my @ftp;
-        my @gain_a_shell_remotely;
-        my @general;
-        my @gentoo_local_security_checks;
-        my @hp_ux_local_security_checks;
-        my @huawei_local_security_checks;
-        my @junos_local_security_checks;
-        my @macos_x_local_security_checks;
-        my @mandriva_local_security_checks;
-        my @marineros_local_security_checks;
-        my @misc;
-        my @mobile_devices;
-        my @netware;
-        my @newstart_cgsl_local_security_checks;
-        my @oracle_linux_local_security_checks;
-        my @oraclevm_local_security_checks;
-        my @peer_to_peer_file_sharing;
-        my @palo_alto_local_security_checks;
-        my @photonos_local_security_checks;
-        my @policy_compliance;
-        my @port_scanners;
-        my @red_hat_local_security_checks;
-        my @rocky_linux_local_security_checks;
-        my @rpc;
-        my @scada;
-        my @scientific_linux_local_security_checks;
-        my @service_detection;
-        my @settings;
-        my @slackware_local_security_checks;
-        my @smtp_problems;
-        my @snmp;
-        my @solaris_local_security_checks;
-        my @suse_local_security_checks;
-        my @tenable_ot;
-        my @ubuntu_local_security_checks;
-        my @vmware_esx_local_security_checks;
-        my @virtuozzo_local_security_checks;
-        my @web_servers;
-        my @windows;
-        my @windows_microsoft_bulletins;
-        my @windows_user_management;
-        my @port_scan;
         my @WindowsUserManagement;
-        my @incident_response;
+
         ####  END OF NEW ARRAYS
         
         if(ref ($host->{host_report}) eq "ARRAY"){@HostReport = @{$host->{host_report}};}
@@ -1157,71 +1114,10 @@ sub normalizeHostData {
                 # end of if
             }
             # end of ifif($h_report->{-pluginID} =~ /10150/)
-            if($h_report->{'-pluginFamily'} =~ /AIX Local Security Checks/){push @aix_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Alma Linux Local Security Checks/){push @alma_linux_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Amazon Linux Local Security Checks/){push @amazon_linux_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Backdoors/){push @backdoors, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Brute force attacks/){push @brute_force_attacks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /CentOS Local Security Checks/){push @centos_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /CGI abuses/){push @cgi_abuses, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /CGI abuses : XSS/){push @cgi_abuses_xss, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /CISCO/){push @cisco, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Databases/){push @databases, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Debian Local Security Checks/){push @debian_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Default Unix Accounts/){push @default_unix_accounts, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Denial of Service/){push @denial_of_service, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /DNS/){push @dns, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /F5 Networks Local Security Checks/){push @f5_networks_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Fedora Local Security Checks/){push @fedora_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Finger abuses/){push @finger_abuses, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Firewalls/){push @firewalls, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /FreeBSD Local Security Checks/){push @freebsd_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /FTP/){push @ftp, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Gain a shell remotely/){push @gain_a_shell_remotely, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /General/){push @general, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Gentoo Local Security Checks/){push @gentoo_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /HP-UX Local Security Checks/){push @hp_ux_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Huawei Local Security Checks/){push @huawei_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Junos Local Security Checks/){push @junos_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /MacOS X Local Security Checks/){push @macos_x_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Mandriva Local Security Checks/){push @mandriva_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /MarinerOS Local Security Checks/){push @marineros_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Misc./){push @misc, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Mobile Devices/){push @mobile_devices, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Netware/){push @netware, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /NewStart CGSL Local Security Checks/){push @newstart_cgsl_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Oracle Linux Local Security/){push @oracle_linux_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /OracleVM Local Security Checks/){push @oraclevm_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Palo Alto Local Security Checks/){push @palo_alto_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Peer-To-Peer File Sharing/){push @peer_to_peer_file_sharing, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /PhotonOS Local Security Checks/){push @photonos_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Policy Compliance/){push @policy_compliance, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Port scanners/){push @port_scanners, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Red Hat Local Security Checks/){push @red_hat_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Rocky Linux Local Security Checks/){push @rocky_linux_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /RPC/){push @rpc, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /SCADA/){push @scada, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Scientific Linux Local Security Checks/){push @scientific_linux_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Service detection/){push @service_detection, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Settings/){push @settings, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Slackware Local Security Checks/){push @slackware_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /SMTP problems/){push @smtp_problems, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /SNMP/){push @snmp, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Solaris Local Security Checks/){push @solaris_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /SuSE Local Security Checks/){push @suse_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Tenable.ot/){push @tenable_ot, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Ubuntu Local Security Checks/){push @ubuntu_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Virtuozzo Local Security Checks/){push @virtuozzo_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /VMware ESX Local Security Checks/){push @vmware_esx_local_security_checks, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Web Servers/){push @web_servers, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Windows/){push @windows, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Windows : Microsoft Bulletins/){push @windows_microsoft_bulletins, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Windows : User management/){push @windows_user_management, $h_report;}
-            elsif($h_report->{'-pluginFamily'} =~ /Incident Response/){push @incident_response, $h_report;}
-            elsif($h_report->{'-pluginFamily'} eq ""){push @port_scan, $h_report;}
-            else{ print "\nThere is a new plugin family added, it is $h_report->{'-pluginFamily'}\n";exit;}
-            
-            if ($h_report->{cvss_base_score} || $h_report->{cvss_vector} || $h_report->{cvss_temporal_score}) {
+
+            push @{$host->{family}->{$h_report->{'-pluginFamily'}}},$h_report;
+
+            if ($h_report->{cvss3_base_score} || $h_report->{cvss3_vector} || $h_report->{cvss3_temporal_score}) {
                 if (not defined $cvss_score{$host->{"host-ip"}}) {
                     $cvss_score{$host->{"host-ip"}}->{critical_base_score} = 0;
                     $cvss_score{$host->{"host-ip"}}->{high_base_score} = 0;
@@ -1232,20 +1128,20 @@ sub normalizeHostData {
                 }
                 # end of if (not defined $cvss_score{$host->{"host-ip"}})
                 if ($h_report->{-severity} == 4) {
-                    if ($h_report->{cvss_base_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{critical_base_score} = $cvss_score{$host->{"host-ip"}}->{critical_base_score} + $h_report->{cvss_base_score}}
-                    if ($h_report->{cvss_temporal_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{critical_temporal_score} = $cvss_score{$host->{"host-ip"}}->{critical_temporal_score} + $h_report->{cvss_temporal_score}}
+                    if ($h_report->{cvss3_base_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{critical_base_score} = $cvss_score{$host->{"host-ip"}}->{critical_base_score} + $h_report->{cvss3_base_score}}
+                    if ($h_report->{cvss3_temporal_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{critical_temporal_score} = $cvss_score{$host->{"host-ip"}}->{critical_temporal_score} + $h_report->{cvss3_temporal_score}}
                 }
                 elsif ($h_report->{-severity} == 3) {
                     
-                    if ($h_report->{cvss_base_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{high_base_score} = $cvss_score{$host->{"host-ip"}}->{high_base_score} + $h_report->{cvss_base_score}}
-                    if ($h_report->{cvss_temporal_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{high_temporal_score} = $cvss_score{$host->{"host-ip"}}->{high_temporal_score} + $h_report->{cvss_temporal_score}}
+                    if ($h_report->{cvss3_base_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{high_base_score} = $cvss_score{$host->{"host-ip"}}->{high_base_score} + $h_report->{cvss3_base_score}}
+                    if ($h_report->{cvss3_temporal_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{high_temporal_score} = $cvss_score{$host->{"host-ip"}}->{high_temporal_score} + $h_report->{cvss3_temporal_score}}
                 }
                 elsif ($h_report->{-severity} == 2) {
-                    if ($h_report->{cvss_base_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{med_base_score} = $cvss_score{$host->{"host-ip"}}->{med_base_score} + $h_report->{cvss_base_score}}
-                    if ($h_report->{cvss_temporal_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{med_temporal_score} = $cvss_score{$host->{"host-ip"}}->{med_temporal_score} + $h_report->{cvss_temporal_score}}
+                    if ($h_report->{cvss3_base_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{med_base_score} = $cvss_score{$host->{"host-ip"}}->{med_base_score} + $h_report->{cvss3_base_score}}
+                    if ($h_report->{cvss3_temporal_score} ne "N/A") {$cvss_score{$host->{"host-ip"}}->{med_temporal_score} = $cvss_score{$host->{"host-ip"}}->{med_temporal_score} + $h_report->{cvss3_temporal_score}}
                 }
             }
-            # end of if ($h_report->{cvss_base_score} || $h_report->{cvss_vector} || $h_report->{cvss_temporal_score})
+            # end of if ($h_report->{cvss3_base_score} || $h_report->{cvss3_vector} || $h_report->{cvss3_temporal_score})
         }
         # end of foreach my $h_report (@HostReport)
         
@@ -1257,71 +1153,18 @@ sub normalizeHostData {
         $vuln_cnt{sev2} = 0;
         $vuln_cnt{sev3} = 0;
         $vuln_cnt{sev4} = 0;
-        if($aix_local_security_checks[0] ne ""){$host->{'aix_local_security_checks'} = \@aix_local_security_checks;%vuln_cnt = get_vuln_cnt(\@aix_local_security_checks,\%vuln_cnt)}
-        if($amazon_linux_local_security_checks[0] ne ""){$host->{'amazon_linux_local_security_checks'} = \@amazon_linux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@amazon_linux_local_security_checks,\%vuln_cnt)}
-        if($alma_linux_local_security_checks[0] ne ""){$host->{'alma_linux_local_security_checks'} = \@alma_linux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@alma_linux_local_security_checks,\%vuln_cnt)}
-        if($backdoors[0] ne ""){$host->{'backdoors'} = \@backdoors;%vuln_cnt = get_vuln_cnt(\@backdoors,\%vuln_cnt)}
-        if($brute_force_attacks[0] ne ""){$host->{'brute_force_attacks'} = \@brute_force_attacks;%vuln_cnt = get_vuln_cnt(\@brute_force_attacks,\%vuln_cnt)}
-        if($centos_local_security_checks[0] ne ""){$host->{'centos_local_security_checks'} = \@centos_local_security_checks;%vuln_cnt = get_vuln_cnt(\@centos_local_security_checks,\%vuln_cnt)}
-        if($cgi_abuses[0] ne ""){$host->{'cgi_abuses'} = \@cgi_abuses;%vuln_cnt = get_vuln_cnt(\@cgi_abuses,\%vuln_cnt)}
-        if($cgi_abuses_xss[0] ne ""){$host->{'cgi_abuses_xss'} = \@cgi_abuses_xss;%vuln_cnt = get_vuln_cnt(\@cgi_abuses_xss,\%vuln_cnt)}
-        if($cisco[0] ne ""){$host->{'cisco'} = \@cisco;%vuln_cnt = get_vuln_cnt(\@cisco,\%vuln_cnt)}
-        if($databases[0] ne ""){$host->{'databases'} = \@databases;%vuln_cnt = get_vuln_cnt(\@databases,\%vuln_cnt)}
-        if($debian_local_security_checks[0] ne ""){$host->{'debian_local_security_checks'} = \@debian_local_security_checks;%vuln_cnt = get_vuln_cnt(\@debian_local_security_checks,\%vuln_cnt)}
-        if($default_unix_accounts[0] ne ""){$host->{'default_unix_accounts'} = \@default_unix_accounts;%vuln_cnt = get_vuln_cnt(\@default_unix_accounts,\%vuln_cnt)}
-        if($denial_of_service[0] ne ""){$host->{'denial_of_service'} = \@denial_of_service;%vuln_cnt = get_vuln_cnt(\@denial_of_service,\%vuln_cnt)}
-        if($dns[0] ne ""){$host->{'dns'} = \@dns;%vuln_cnt = get_vuln_cnt(\@dns,\%vuln_cnt)}
-        if($f5_networks_local_security_checks[0] ne ""){$host->{'f5_networks_local_security_checks'} = \@f5_networks_local_security_checks;%vuln_cnt = get_vuln_cnt(\@f5_networks_local_security_checks,\%vuln_cnt)}
-        if($fedora_local_security_checks[0] ne ""){$host->{'fedora_local_security_checks'} = \@fedora_local_security_checks;%vuln_cnt = get_vuln_cnt(\@fedora_local_security_checks,\%vuln_cnt)}
-        if($finger_abuses[0] ne ""){$host->{'finger_abuses'} = \@finger_abuses;%vuln_cnt = get_vuln_cnt(\@finger_abuses,\%vuln_cnt)}
-        if($firewalls[0] ne ""){$host->{'firewalls'} = \@firewalls;%vuln_cnt = get_vuln_cnt(\@firewalls,\%vuln_cnt)}
-        if($freebsd_local_security_checks[0] ne ""){$host->{'freebsd_local_security_checks'} = \@freebsd_local_security_checks;%vuln_cnt = get_vuln_cnt(\@freebsd_local_security_checks,\%vuln_cnt)}
-        if($ftp[0] ne ""){$host->{'ftp'} = \@ftp;%vuln_cnt = get_vuln_cnt(\@ftp,\%vuln_cnt)}
-        if($gain_a_shell_remotely[0] ne ""){$host->{'gain_a_shell_remotely'} = \@gain_a_shell_remotely;%vuln_cnt = get_vuln_cnt(\@gain_a_shell_remotely,\%vuln_cnt)}
-        if($general[0] ne ""){$host->{'general'} = \@general;%vuln_cnt = get_vuln_cnt(\@general,\%vuln_cnt)}
-        if($gentoo_local_security_checks[0] ne ""){$host->{'gentoo_local_security_checks'} = \@gentoo_local_security_checks;%vuln_cnt = get_vuln_cnt(\@gentoo_local_security_checks,\%vuln_cnt)}
-        if($hp_ux_local_security_checks[0] ne ""){$host->{'hp_ux_local_security_checks'} = \@hp_ux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@hp_ux_local_security_checks,\%vuln_cnt)}
-        if($huawei_local_security_checks[0] ne ""){$host->{'huawei_local_security_checks'} = \@huawei_local_security_checks;%vuln_cnt = get_vuln_cnt(\@huawei_local_security_checks,\%vuln_cnt)}
-        if($junos_local_security_checks[0] ne ""){$host->{'junos_local_security_checks'} = \@junos_local_security_checks;%vuln_cnt = get_vuln_cnt(\@junos_local_security_checks,\%vuln_cnt)}
-        if($macos_x_local_security_checks[0] ne ""){$host->{'macos_x_local_security_checks'} = \@macos_x_local_security_checks;%vuln_cnt = get_vuln_cnt(\@macos_x_local_security_checks,\%vuln_cnt)}
-        if($mandriva_local_security_checks[0] ne ""){$host->{'mandriva_local_security_checks'} = \@mandriva_local_security_checks;%vuln_cnt = get_vuln_cnt(\@mandriva_local_security_checks,\%vuln_cnt)}
-        if($marineros_local_security_checks[0] ne ""){$host->{'marineros_local_security_checks'} = \@marineros_local_security_checks;%vuln_cnt = get_vuln_cnt(\@marineros_local_security_checks,\%vuln_cnt)}
-        if($misc[0] ne ""){$host->{'misc'} = \@misc;%vuln_cnt = get_vuln_cnt(\@misc,\%vuln_cnt)}
-        if($mobile_devices[0] ne ""){$host->{'mobile_devices'} = \@mobile_devices;%vuln_cnt = get_vuln_cnt(\@mobile_devices,\%vuln_cnt)}
-        if($netware[0] ne ""){$host->{'netware'} = \@netware;%vuln_cnt = get_vuln_cnt(\@netware,\%vuln_cnt)}
-        if($newstart_cgsl_local_security_checks[0] ne ""){$host->{'newstart_cgsl_local_security_checks'} = \@newstart_cgsl_local_security_checks;%vuln_cnt = get_vuln_cnt(\@newstart_cgsl_local_security_checks,\%vuln_cnt)}
-        if($oracle_linux_local_security_checks[0] ne ""){$host->{'oracle_linux_local_security_checks'} = \@oracle_linux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@oracle_linux_local_security_checks,\%vuln_cnt)}
-        if($oraclevm_local_security_checks[0] ne ""){$host->{'oraclevm_local_security_checks'} = \@oraclevm_local_security_checks;%vuln_cnt = get_vuln_cnt(\@oraclevm_local_security_checks,\%vuln_cnt)}
-        if($palo_alto_local_security_checks[0] ne ""){$host->{'palo_alto_local_security_checks'} = \@palo_alto_local_security_checks;%vuln_cnt = get_vuln_cnt(\@palo_alto_local_security_checks,\%vuln_cnt)}
-        if($peer_to_peer_file_sharing[0] ne ""){$host->{'peer_to_peer_file_sharing'} = \@peer_to_peer_file_sharing;%vuln_cnt = get_vuln_cnt(\@peer_to_peer_file_sharing,\%vuln_cnt)}
-        if($photonos_local_security_checks[0] ne ""){$host->{'photonos_local_security_checks'} = \@photonos_local_security_checks;%vuln_cnt = get_vuln_cnt(\@photonos_local_security_checks,\%vuln_cnt)}
-        if($policy_compliance[0] ne ""){$host->{'policy_compliance'} = \@policy_compliance;}
-        if($port_scanners[0] ne ""){$host->{'port_scanners'} = \@port_scanners;%vuln_cnt = get_vuln_cnt(\@port_scanners,\%vuln_cnt)}
-        if($red_hat_local_security_checks[0] ne ""){$host->{'red_hat_local_security_checks'} = \@red_hat_local_security_checks;%vuln_cnt = get_vuln_cnt(\@red_hat_local_security_checks,\%vuln_cnt)}
-        if($rocky_linux_local_security_checks[0] ne ""){$host->{'rocky_linux_local_security_checks'} = \@rocky_linux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@rocky_linux_local_security_checks,\%vuln_cnt)}
-        if($rpc[0] ne ""){$host->{'rpc'} = \@rpc;%vuln_cnt = get_vuln_cnt(\@rpc,\%vuln_cnt)}
-        if($scada[0] ne ""){$host->{'scada'} = \@scada;%vuln_cnt = get_vuln_cnt(\@scada,\%vuln_cnt)}
-        if($scientific_linux_local_security_checks[0] ne ""){$host->{'scientific_linux_local_security_checks'} = \@scientific_linux_local_security_checks;%vuln_cnt = get_vuln_cnt(\@scientific_linux_local_security_checks,\%vuln_cnt)}
-        if($service_detection[0] ne ""){$host->{'service_detection'} = \@service_detection;%vuln_cnt = get_vuln_cnt(\@service_detection,\%vuln_cnt)}
-        if($settings[0] ne ""){$host->{'settings'} = \@settings;%vuln_cnt = get_vuln_cnt(\@settings,\%vuln_cnt)}
-        if($slackware_local_security_checks[0] ne ""){$host->{'slackware_local_security_checks'} = \@slackware_local_security_checks;%vuln_cnt = get_vuln_cnt(\@slackware_local_security_checks,\%vuln_cnt)}
-        if($smtp_problems[0] ne ""){$host->{'smtp_problems'} = \@smtp_problems;%vuln_cnt = get_vuln_cnt(\@smtp_problems,\%vuln_cnt)}
-        if($snmp[0] ne ""){$host->{'snmp'} = \@snmp;%vuln_cnt = get_vuln_cnt(\@snmp,\%vuln_cnt)}
-        if($solaris_local_security_checks[0] ne ""){$host->{'solaris_local_security_checks'} = \@solaris_local_security_checks;%vuln_cnt = get_vuln_cnt(\@solaris_local_security_checks,\%vuln_cnt)}
-        if($suse_local_security_checks[0] ne ""){$host->{'suse_local_security_checks'} = \@suse_local_security_checks;%vuln_cnt = get_vuln_cnt(\@suse_local_security_checks,\%vuln_cnt)}
-        if($tenable_ot[0] ne ""){$host->{'tenable_ot'} = \@tenable_ot;%vuln_cnt = get_vuln_cnt(\@tenable_ot,\%vuln_cnt)}
-        if($ubuntu_local_security_checks[0] ne ""){$host->{'ubuntu_local_security_checks'} = \@ubuntu_local_security_checks;%vuln_cnt = get_vuln_cnt(\@ubuntu_local_security_checks,\%vuln_cnt)}
-        if($virtuozzo_local_security_checks[0] ne ""){$host->{'virtuozzo_local_security_checks'} = \@virtuozzo_local_security_checks;%vuln_cnt = get_vuln_cnt(\@virtuozzo_local_security_checks,\%vuln_cnt)}
-        if($vmware_esx_local_security_checks[0] ne ""){$host->{'vmware_esx_local_security_checks'} = \@vmware_esx_local_security_checks;%vuln_cnt = get_vuln_cnt(\@vmware_esx_local_security_checks,\%vuln_cnt)}
-        if($web_servers[0] ne ""){$host->{'web_servers'} = \@web_servers;%vuln_cnt = get_vuln_cnt(\@web_servers,\%vuln_cnt)}
-        if($windows[0] ne ""){$host->{'windows'} = \@windows;%vuln_cnt = get_vuln_cnt(\@windows,\%vuln_cnt)}
-        if($windows_microsoft_bulletins[0] ne ""){$host->{'windows_microsoft_bulletins'} = \@windows_microsoft_bulletins;%vuln_cnt = get_vuln_cnt(\@windows_microsoft_bulletins,\%vuln_cnt)}
-        if($windows_user_management[0] ne ""){$host->{'windows_user_management'} = \@windows_user_management;%vuln_cnt = get_vuln_cnt(\@windows_user_management,\%vuln_cnt)}
 
-        if($port_scan[0] ne ""){$host->{'port_scan'} = \@port_scan;%vuln_cnt = get_vuln_cnt(\@port_scan,\%vuln_cnt)}
-        if($incident_response[0] ne ""){$host->{'incident_response'} = \@incident_response;%vuln_cnt = get_vuln_cnt(\@incident_response,\%vuln_cnt);}
-        
+        foreach my $f (keys %{$host->{family}}){
+            my @fam;
+            if($f eq "Policy Compliance"){
+                foreach (@{$host->{family}->{$f}}){if ($_->{'-pluginName'} !~ /Compliance Checks$/){push @fam,$_}}
+            }
+            else{push @fam, @{$host->{family}->{$f}};}
+            %vuln_cnt = get_vuln_cnt(\@fam,\%vuln_cnt);
+        }
+        #end
         $host->{'vuln_cnt'} = \%vuln_cnt;
+
     }
     # end the Policy Compliance foreach loop
     print "\nFinished Parsing XML Data\n\n";
@@ -1334,68 +1177,13 @@ sub normalizeHostData {
         else{@report_data = @{$host->{host_report}};}
         my $name = $host->{name};
         if (not defined $host->{'host-fqdn'}){$host->{'host-fqdn'} = "N/A";}
-        if($host->{'aix_local_security_checks'}->[0] ne ""){store_vuln($host->{'aix_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'alma_linux_local_security_checks'}->[0] ne ""){store_vuln($host->{'alma_linux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'amazon_linux_local_security_checks'}->[0] ne ""){store_vuln($host->{'amazon_linux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'backdoors'}->[0] ne ""){store_vuln($host->{'backdoors'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'brute_force_attacks'}->[0] ne ""){store_vuln($host->{'brute_force_attacks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'centos_local_security_checks'}->[0] ne ""){store_vuln($host->{'centos_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'cgi_abuses'}->[0] ne ""){store_vuln($host->{'cgi_abuses'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'cgi_abuses_xss'}->[0] ne ""){store_vuln($host->{'cgi_abuses_xss'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'cisco'}->[0] ne ""){store_vuln($host->{'cisco'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'databases'}->[0] ne ""){store_vuln($host->{'databases'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'debian_local_security_checks'}->[0] ne ""){store_vuln($host->{'debian_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'default_unix_accounts'}->[0] ne ""){store_vuln($host->{'default_unix_accounts'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'denial_of_service'}->[0] ne ""){store_vuln($host->{'denial_of_service'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'dns'}->[0] ne ""){store_vuln($host->{'dns'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'f5_networks_local_security_checks'}->[0] ne ""){store_vuln($host->{'f5_networks_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'fedora_local_security_checks'}->[0] ne ""){store_vuln($host->{'fedora_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'finger_abuses'}->[0] ne ""){store_vuln($host->{'finger_abuses'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'firewalls'}->[0] ne ""){store_vuln($host->{'firewalls'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'freebsd_local_security_checks'}->[0] ne ""){store_vuln($host->{'freebsd_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'ftp'}->[0] ne ""){store_vuln($host->{'ftp'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'gain_a_shell_remotely'}->[0] ne ""){store_vuln($host->{'gain_a_shell_remotely'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'general'}->[0] ne ""){store_vuln($host->{'general'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'gentoo_local_security_checks'}->[0] ne ""){store_vuln($host->{'gentoo_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'hp_ux_local_security_checks'}->[0] ne ""){store_vuln($host->{'hp_ux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'huawei_local_security_checks'}->[0] ne ""){store_vuln($host->{'huawei_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'incident_response'}->[0] ne ""){store_vuln($host->{'incident_response'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'junos_local_security_checks'}->[0] ne ""){store_vuln($host->{'junos_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'macos_x_local_security_checks'}->[0] ne ""){store_vuln($host->{'macos_x_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'mandriva_local_security_checks'}->[0] ne ""){store_vuln($host->{'mandriva_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'marineros_local_security_checks'}->[0] ne ""){store_vuln($host->{'marineros_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'misc'}->[0] ne ""){store_vuln($host->{'misc'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'mobile_devices'}->[0] ne ""){store_vuln($host->{'mobile_devices'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'netware'}->[0] ne ""){store_vuln($host->{'netware'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'newstart_cgsl_local_security_checks'}->[0] ne ""){store_vuln($host->{'newstart_cgsl_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'oracle_linux_local_security_checks'}->[0] ne ""){store_vuln($host->{'oracle_linux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'oraclevm_local_security_checks'}->[0] ne ""){store_vuln($host->{'oraclevm_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'palo_alto_local_security_checks'}->[0] ne ""){store_vuln($host->{'palo_alto_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'peer_to_peer_file_sharing'}->[0] ne ""){store_vuln($host->{'peer_to_peer_file_sharing'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'photonos_local_security_checks'}->[0] ne ""){store_vuln($host->{'photonos_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'policy_compliance'}->[0] ne ""){store_vuln($host->{'policy_compliance'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'port_scanners'}->[0] ne ""){store_vuln($host->{'port_scanners'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'red_hat_local_security_checks'}->[0] ne ""){store_vuln($host->{'red_hat_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'rocky_linux_local_security_checks'}->[0] ne ""){store_vuln($host->{'rocky_linux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'rpc'}->[0] ne ""){store_vuln($host->{'rpc'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'scada'}->[0] ne ""){store_vuln($host->{'scada'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'scientific_linux_local_security_checks'}->[0] ne ""){store_vuln($host->{'scientific_linux_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'service_detection'}->[0] ne ""){store_vuln($host->{'service_detection'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'settings'}->[0] ne ""){store_vuln($host->{'settings'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'slackware_local_security_checks'}->[0] ne ""){store_vuln($host->{'slackware_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'smtp_problems'}->[0] ne ""){store_vuln($host->{'smtp_problems'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'snmp'}->[0] ne ""){store_vuln($host->{'snmp'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'solaris_local_security_checks'}->[0] ne ""){store_vuln($host->{'solaris_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'suse_local_security_checks'}->[0] ne ""){store_vuln($host->{'suse_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'tenable_ot'}->[0] ne ""){store_vuln($host->{'tenable_ot'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'ubuntu_local_security_checks'}->[0] ne ""){store_vuln($host->{'ubuntu_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'vmware_esx_local_security_checks'}->[0] ne ""){store_vuln($host->{'vmware_esx_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'virtuozzo_local_security_checks'}->[0] ne ""){store_vuln($host->{'virtuozzo_local_security_checks'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'web_servers'}->[0] ne ""){store_vuln($host->{'web_servers'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
-        if($host->{'windows'}->[0] ne ""){store_vuln($host->{'windows'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"})}
-        if($host->{'windows_microsoft_bulletins'}->[0] ne ""){store_vuln($host->{'windows_microsoft_bulletins'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});print "";}
+
+        foreach my $f (keys %{$host->{family}}){
+            store_vuln(\@{$host->{family}->{$f}},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"});
+        }
+        #end
+
         if($host->{'windows_user_management'}->[0] ne ""){store_vuln($host->{'windows_user_management'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"})}
-        if($host->{'port_scan'}->[0] ne ""){store_vuln($host->{'port_scan'},$host->{'file'},$host->{name},$host->{'host-fqdn'},$host->{"netbios-name"},$host->{"operating-system"})}
         my @MSWinAccounts;
         my $domain_user_list;
         my $local_user_list;
@@ -1548,69 +1336,7 @@ sub normalizeHostData {
         #  end of if ($password_policy ne "")
         
         ######  testing to remove the plugin Family Data
-        
-        delete $host->{'aix_local_security_checks'};
-        delete $host->{'amazon_linux_local_security_checks'};
-        delete $host->{'alma_linux_local_security_checks'};
-        delete $host->{'backdoors'};
-        delete $host->{'brute_force_attacks'};
-        delete $host->{'centos_local_security_checks'};
-        delete $host->{'cgi_abuses'};
-        delete $host->{'cgi_abuses_xss'};
-        delete $host->{'cisco'};
-        delete $host->{'databases'};
-        delete $host->{'debian_local_security_checks'};
-        delete $host->{'default_unix_accounts'};
-        delete $host->{'denial_of_service'};
-        delete $host->{'dns'};
-        delete $host->{'f5_networks_local_security_checks'};
-        delete $host->{'fedora_local_security_checks'};
-        delete $host->{'finger_abuses'};
-        delete $host->{'firewalls'};
-        delete $host->{'freebsd_local_security_checks'};
-        delete $host->{'ftp'};
-        delete $host->{'gain_a_shell_remotely'};
-        delete $host->{'general'};
-        delete $host->{'gentoo_local_security_checks'};
-        delete $host->{'hp_ux_local_security_checks'};
-        delete $host->{'huawei_local_security_checks'};
-        delete $host->{'incident_response'};
-        delete $host->{'junos_local_security_checks'};
-        delete $host->{'macos_x_local_security_checks'};
-        delete $host->{'mandriva_local_security_checks'};
-        delete $host->{'marineros_local_security_checks'};
-        delete $host->{'misc'};
-        delete $host->{'mobile_devices'};
-        delete $host->{'netware'};
-        delete $host->{'newstart_cgsl_local_security_checks'};
-        delete $host->{'oraclevm_local_security_checks'};
-        delete $host->{'oracle_linux_local_security_checks'};
-        delete $host->{'palo_alto_local_security_checks'};
-        delete $host->{'peer_to_peer_file_sharing'};
-        delete $host->{'photonos_local_security_checks'};
-        delete $host->{'policy_compliance'};
-        delete $host->{'port_scanners'};
-        delete $host->{'red_hat_local_security_checks'};
-        delete $host->{'rocky_linux_local_security_checks'};
-        delete $host->{'rpc'};
-        delete $host->{'scada'};
-        delete $host->{'scientific_linux_local_security_checks'};
-        delete $host->{'service_detection'};
-        delete $host->{'settings'};
-        delete $host->{'slackware_local_security_checks'};
-        delete $host->{'smtp_problems'};
-        delete $host->{'snmp'};
-        delete $host->{'solaris_local_security_checks'};
-        delete $host->{'suse_local_security_checks'};
-        delete $host->{'tenable_ot'};
-        delete $host->{'ubuntu_local_security_checks'};
-        delete $host->{'vmware_esx_local_security_checks'};
-        delete $host->{'virtuozzo_local_security_checks'};
-        delete $host->{'web_servers'};
-        delete $host->{'windows_microsoft_bulletins'};
-        delete $host->{'windows_user_management'};
-        delete $host->{'windows'};
-        delete $host->{'port_scan'};        
+        delete $host->{'family'};     
         ######  end removeing plugin data
     }
     # end foreach my $host (@host_data)
@@ -1618,9 +1344,32 @@ sub normalizeHostData {
 }
 # end of sub normalizeHostData
 
+sub setDevModeFile {
+    
+    if ($mode eq "store") {
+        my $export;
+        $export->{host_data} = \@host_data;
+        $export->{ip_vuln_data} = \%ip_vuln_data;
+        $export->{vulnerability_data} = \%vulnerability_data;
+        store $export, "rawVulnData.bin";
+    }
+    elsif ($mode eq "dev") {
+         my $export = retrieve ('rawVulnData.bin');
+         @host_data = @{$export->{host_data}};
+         %ip_vuln_data = %{$export->{ip_vuln_data}};
+         %vulnerability_data = %{$export->{vulnerability_data}};
+         print "";
+         #die print "\n\n  testing";
+    }
+    # end if..else
+}
 print "\n\n\n Pause for Testing before reading data\n\n";
 ##############################  END SUBROUTINES
-
+if ($mode ne "NOT_SET") {
+    setDevModeFile();
+}
+#die print "\n\n  testing";
+# end testing
 
 foreach my $file (@xml_files){
     print "---------  Parsing $file\n\n";
@@ -1629,6 +1378,17 @@ foreach my $file (@xml_files){
     if($tree->{NessusClientData_v2}){print "Parsing File $file \n\n";}
     else{print "This file \"$file\" is not using the Nessus version 2 format, please choose the nessus v2 format.\n\n";exit;}
     my @report_data;
+
+    if(ref $tree->{NessusClientData_v2}->{Policy}->{Preferences}->{ServerPreferences}->{preference} ne "ARRAY"){
+        my $subKey = to_json($tree->{NessusClientData_v2}->{Policy}->{Preferences}->{ServerPreferences}->{preference});
+        $subKey = from_json ($subKey);
+        $tree->{NessusClientData_v2}->{Policy}->{Preferences}->{ServerPreferences}->{preference} = [];
+        push @{$tree->{NessusClientData_v2}->{Policy}->{Preferences}->{ServerPreferences}->{preference}}, $subKey;
+        print "";
+    }
+    else{
+        print "";
+    }
     my @t_policy = grep {$_->{name} =~ /targ/i} @{$tree->{NessusClientData_v2}->{Policy}->{Preferences}->{ServerPreferences}->{preference}};
     push @targets, @t_policy;
     if (ref($tree->{NessusClientData_v2}->{Report}->{ReportHost}) eq "HASH"){push @report_data, $tree->{NessusClientData_v2}->{Report}->{ReportHost};}
@@ -1733,9 +1493,9 @@ $host_scan_data_worksheet->write(1, 5, 'Port',$center_border6_format);
 $host_scan_data_worksheet->write(1, 6, 'Severity',$center_border6_format);
 $host_scan_data_worksheet->write(1, 7, 'Plugin Family',$center_border6_format);
 $host_scan_data_worksheet->write(1, 8, 'Plugin Name',$center_border6_format);
-$host_scan_data_worksheet->write(1, 9, 'CVSS Vector',$center_border6_format);
-$host_scan_data_worksheet->write(1, 10, 'CVSS Base Score',$center_border6_format);
-$host_scan_data_worksheet->write(1, 11, 'CVSS Temporal Score',$center_border6_format);
+$host_scan_data_worksheet->write(1, 9, 'CVSSv3 Vector',$center_border6_format);
+$host_scan_data_worksheet->write(1, 10, 'CVSSv3 Base Score',$center_border6_format);
+$host_scan_data_worksheet->write(1, 11, 'CVSSv3 Temporal Score',$center_border6_format);
 $host_scan_data_worksheet->write(1, 12, 'Exploitability Ease',$center_border6_format);
 $host_scan_data_worksheet->write(1, 13, 'Exploit Available',$center_border6_format);
 $host_scan_data_worksheet->write(1, 14, 'Exploit Framework Canvas',$center_border6_format);
@@ -1785,9 +1545,9 @@ foreach (@host_scan_data){
         $host_scan_data_worksheet->write(1, 6, 'Severity',$center_border6_format);
         $host_scan_data_worksheet->write(1, 7, 'Plugin Family',$center_border6_format);
         $host_scan_data_worksheet->write(1, 8, 'Plugin Name',$center_border6_format);
-        $host_scan_data_worksheet->write(1, 9, 'CVSS Vector',$center_border6_format);
-        $host_scan_data_worksheet->write(1, 10, 'CVSS Base Score',$center_border6_format);
-        $host_scan_data_worksheet->write(1, 11, 'CVSS Temporal Score',$center_border6_format);
+        $host_scan_data_worksheet->write(1, 9, 'CVSSv3 Vector',$center_border6_format);
+        $host_scan_data_worksheet->write(1, 10, 'CVSSv3 Base Score',$center_border6_format);
+        $host_scan_data_worksheet->write(1, 11, 'CVSSv3 Temporal Score',$center_border6_format);
         $host_scan_data_worksheet->write(1, 12, 'Exploitability Ease',$center_border6_format);
         $host_scan_data_worksheet->write(1, 13, 'Exploit Available',$center_border6_format);
         $host_scan_data_worksheet->write(1, 14, 'Exploit Framework Canvas',$center_border6_format);
@@ -1884,8 +1644,8 @@ if($ScanInfo[0] ne ""){
 ### end of ScanInfo
 
 my $cvss_total_score_ctr = 5;
-print "Storing CVSS Total Score Data Table\n";
-my $cvss_total_score_worksheet = $workbook->add_worksheet('CVSS Score Total');
+print "Storing CVSSv3 Total Score Data Table\n";
+my $cvss_total_score_worksheet = $workbook->add_worksheet('CVSSv3 Score Total');
 $cvss_total_score_worksheet->write_url( 'A1', $home_url, $url_format, $_);
 $cvss_total_score_worksheet->keep_leading_zeros();
 $cvss_total_score_worksheet->write(4, 0, 'Host IP Address',$center_border6_format);
@@ -2793,6 +2553,127 @@ if(keys %ip_vuln_data > 0){
 }
 # end of if(keys %ip_vuln_data > 0)
 
+
+if(ref $authData eq "HASH"){
+    my @colName = qw (A B C D E F G H I J K L M N O P Q R S T U V W X Y Z AA AB AC AD AE AF AG AH AI AJ AK AL AM AN AO AP AQ AR AS AT AU AV AW AX AY AZ);
+    print "Storing Authentication Data\n";
+    my $authReport_worksheet = $workbook->add_worksheet('Authentication Summary Data');
+    $authReport_worksheet->write_url( 'A1', $home_url, $url_format, $_);
+    $authReport_worksheet->keep_leading_zeros();
+    $authReport_worksheet->merge_range( 1, 0, 1, 1, 'Auth Sumamry', $center_border6_format );
+    unshift @authPlugins, "Total";
+    unshift @authPlugins, "Host";
+    unshift @authPlugins, "File";
+    my @aResult;
+    my $aCol = 0;
+    my $aRow = 2;
+    my @fileName = keys %{$authData->{hash}};
+
+    foreach (sort @fileName){
+        if($_ eq ""){next}
+        $authReport_worksheet->write($aRow, 0, $_ ,$cell_format);
+        ++$aRow;
+    }
+    #end
+    ++$aRow;
+    
+    foreach (@authPlugins){
+        $authReport_worksheet->write($aRow, $aCol, "SUM-DOWN" ,$cell_format);
+        ++$aCol;
+    }
+    #end
+    ++$aRow;
+
+    $aCol = 0;
+    foreach (@authPlugins){
+        $authReport_worksheet->write($aRow, $aCol, $_ ,$center_border6_format);
+        $authReport_worksheet->write(1, $aCol, $_ ,$center_border6_format);
+        ++$aCol;
+    }
+    #end    
+    ++$aRow;
+    
+    my $startRow = $aRow + 1;
+    my $aCnt = @authPlugins;
+    foreach my $f (keys %{$authData->{hash}}){
+        if($f eq ""){next}
+        foreach my $n (keys %{$authData->{hash}->{$f}}){
+            my @a = @authPlugins;
+            $aCol = 2;
+            $a[0] = $f;
+            $a[1] = $n;
+            while ($aCol < $aCnt){
+                if($authData->{hash}->{$f}->{$n}->{$a[$aCol]}){$a[$aCol] = 1;}
+                elsif($a[$aCol] eq "Total"){$a[$aCol] = "SUM"}
+                else{$a[$aCol] = 0;}
+                ++$aCol;
+            }
+            #end While
+            push @aResult, join ",", @a;
+        }
+        #end
+    }
+    #end 
+    foreach (@aResult){
+        $aCol = 0;
+        my @a = split /\,/,$_;
+        foreach (@a){
+            # =SUM(D4:Z4)
+            if($_ eq "SUM"){my $mRow = $aRow +1;$_ = "=SUM(D$mRow:$colName[$aCnt]$mRow)"}
+            $authReport_worksheet->write($aRow, $aCol, $_ ,$cell_format);
+            ++$aCol;
+        }
+        ++$aRow;
+    }
+    print "";
+
+    my $lastRow = $aRow;
+    $aRow = $startRow - 3;
+    $aCol = 0;
+    foreach (@authPlugins){
+        if($aCol == 0){$authReport_worksheet->write($aRow, $aCol, "" ,$cell_format);}
+        elsif($aCol == 1){$authReport_worksheet->write($aRow, $aCol, "" ,$cell_format);}
+        elsif($aCol == 2){$authReport_worksheet->write($aRow, $aCol, "" ,$cell_format);}
+        else{
+            $authReport_worksheet->write($aRow, $aCol, "=SUM($colName[$aCol]$startRow:$colName[$aCol]$lastRow)" ,$cell_format);
+        }
+        #end
+        ++$aCol;
+    }
+    #end
+
+    $aRow = 2;
+    foreach (sort @fileName){
+        if($_ eq ""){next}
+        my $aCell = $aRow +1;
+        $aCol = 0;
+        foreach (@authPlugins){
+            if($aCol == 0){}
+            elsif($aCol == 1){
+                $authReport_worksheet->write($aRow, $aCol, "=COUNTIF(A$startRow:A$lastRow,A$aCell)" ,$cell_format);
+            }
+            elsif($aCol == 2){
+                $authReport_worksheet->write($aRow, $aCol, "" ,$cell_format);
+            }
+            else{
+                $authReport_worksheet->write($aRow, $aCol, "=SUMIF(A$startRow:A$lastRow,A$aCell,$colName[$aCol]$startRow:$colName[$aCol]$lastRow)" ,$cell_format);
+            }
+            #end
+            ++$aCol;
+        }
+        #end
+        ++$aRow;
+    }
+    #end 
+
+    my $aHeader = $startRow - 1;
+    $authReport_worksheet->freeze_panes("C$startRow");
+    $authReport_worksheet->autofilter("A$aHeader:$colName[$aCnt]$aHeader");
+    $authReport_worksheet->set_column('A:B',40);
+}
+#end
+
+
 print "Storing Host Summary Report Table\n";
 my $HostSummaryReport_worksheet = $workbook->add_worksheet('HostSummary Report Data');
 $HostSummaryReport_worksheet->write_url( 'A1', $home_url, $url_format, $_);
@@ -2837,7 +2718,7 @@ foreach my $entry (@host_sum_array){
     $chart->add_series(
         name       => $chart_title,
         categories => [$chart_sheet_name, $row_start, $row_end-1, 0, 0],
-        values     => [$chart_sheet_name, $row_start, $row_end-1, 1, 1],
+        values     => [$chart_sheet_name, $row_start, $row_end-1, 1, 1]
     );
     # Add a title.
     $chart->set_title( name => $chart_title);
