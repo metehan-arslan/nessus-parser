@@ -6,8 +6,11 @@ Feel free to open pull requests/issues!
 
 ## Before Getting Started
 - Make sure you have Perl and cpan installed. 
-- Get dependencies via cpan:  (takes some time, might require sudo privilege.)
->cpan install XML::TreePP Data::Dumper Math::Round Excel::Writer::XLSX Data::Table Excel::Writer::XLSX::Chart Getopt::Std Storable JSON
+- Get dependencies via cpan:  (takes some time, may require sudo privilege.)
+
+```
+cpan install XML::TreePP Data::Dumper Math::Round Excel::Writer::XLSX Data::Table Excel::Writer::XLSX::Chart Getopt::Std Storable JSON
+```
 
 ## Usage
 
